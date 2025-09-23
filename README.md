@@ -3,13 +3,31 @@
 This repository contains enterprise-grade extensions for Azure Deployment Environments (ADE) including:
 
 ## Disclaimer
-### This solution is set up and demoed for dev environments, make sure that you test all proper scenarios before upgrading this onto prod.
-### You may consult avivkabesa@microsoft.com 
+### This solution is set up and demoed for dev environments, make sure that you test all proper scenarios before upgrading this into your production workloads.
 
-## 🚀 Features
+## ADE TL;DR-Documentation Terminology
+- Dev Center: Top level resource of ADE. Contains collections of projects.
+  - Here you can define a common configuration for your projects, such as catalogs and application templates.
+  - Dev Centers are created by Platform Engineers preferrably. 
+  - They'd create the dev center, attach catalogs, create projects to a certain dev center and provide an access to the projects to certain engineering teams.
+- Catalog: Can be assigned to a Dev Center. Allows to create pre-backed infrastructure templates - which are environment definitions.
+  - if you assign a github repo, once you add an environment definition that'd be updated automatically in the existing catalog.
+- Environment Types: Helps use define different types of environment (eg. Dev, Prod, Standard <name_your_product_here> env)
+  - Environment types are available for each project, either new or existing, within a dev center.
+  - Environment types are not enabled by default.
+  - Once you've enabled them, that'd determain the managed identity and subscriptions that are used in the assigned deployed environment.
+- Project: Associated with a Dev Center. Represents a team or a business function within your company
+  - Under a certain engineering team's project, developer may:
+    - create a new environment using environment definitions
+    - connect individual resources
+    - deploy your nice app on those resources
+  - Once a Project is assigned to a Dev Center, all Dev Center level settings applies to it
+  - Project can be assigned only to a single dev center
+
+## 🚀 Features in this repo
 
 ### 1. Slack Integration for Environment Notifications
-- **Logic App-based solution** for zero-maintenance event processing
+- **Logic App-based solution** for near-zero-maintenance event processing
 - **Event Grid integration** with ADE lifecycle events
 - **Slack notifications** with actionable buttons
 - **Secure webhook handling** with proper authentication
@@ -83,5 +101,11 @@ The solution follows enterprise patterns:
 ## 🤝 Contributing
 
 This solution is designed for enterprise customers with specific ADE requirements. Please follow the established patterns when extending functionality.
+You may consult avivkabesa@microsoft.com 
+
+## Resources and References
+- https://youtu.be/PN6eZOlsxOA?si=kusIYkxUzOO1k5VS
+- 
+
 
 ---
