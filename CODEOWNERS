@@ -1,0 +1,10 @@
+# CODEOWNERS file for ade-use-and-addons repository
+# This file defines who owns different parts of the codebase
+# Global ownership - all files and directories in the repository
+
+# Global owner for all files (fallback)
+* @avivka
+
+# Root configuration files
+/.gitignore @avivkabesa
+/CODEOWNERS @avivkabesa
