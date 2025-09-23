@@ -1,0 +1,44 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+
+# Specifically ignore the terraform.tfvars file in the infrastructure directory
+infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/complete/terraform.tfvars
+infrastructure/terraform/modules/*/terraform.tfvars
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Azure CLI cache
+.azure/
+
+# PowerShell modules (if using PowerShell)
+PSGetModuleInfo.xml
+
+# Migration tracking file
+MIGRATION-COMPLETE.md
