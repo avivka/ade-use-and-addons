@@ -1,0 +1,156 @@
+# ==============================================================================
+# TERRAFORM VARIABLES EXAMPLE
+# Azure Deployment Environments - Budget Governance Configuration
+# ==============================================================================
+
+# ==============================================================================
+# REQUIRED VARIABLES
+# ==============================================================================
+
+# Azure resource configuration
+resource_group_name = "ade-sandbox-rg"
+location           = "Canada Central"
+
+# User identification (REQUIRED)
+user_email         = "admin@MngEnvMCAP028150.onmicrosoft.com"
+user_hash          = "avivka8"  # Short unique identifier for the user
+environment_name   = "dev-env-001"
+
+# Budget configuration (REQUIRED)
+budget_amount      = 5.00
+budget_start_date  = "2025-09-24"
+budget_end_date    = "2025-09-25"
+
+# Email notifications (REQUIRED)
+devops_team_email  = "avivkabesa@microsoft.com"
+finance_team_email = "avivkabesa@microsoft.com"
+
+# ==============================================================================
+# ALERT THRESHOLDS
+# ==============================================================================
+
+# Budget alert configuration
+alert_thresholds = {
+  high_usage_threshold = 80
+  critical_threshold   = 95
+  budget_exceeded     = 100
+  forecast_threshold  = 90
+}
+
+# ==============================================================================
+# OPTIONAL CONFIGURATION
+# ==============================================================================
+
+# Environment settings
+environment_type     = "development"
+# cost_center         = "engineering"
+expiration_date     = "2025-09-25"
+
+# Storage account configuration
+storage_account_tier    = "Standard"
+storage_replication_type = "ZRS"
+storage_access_tier     = "Hot"
+
+# Log Analytics configuration
+log_analytics_sku = "PerGB2018"
+log_retention_days = 30
+
+# Security settings
+# allow_public_access        = false
+enable_deletion_protection = true
+
+# ==============================================================================
+# TAGGING STRATEGY
+# ==============================================================================
+
+# Additional custom tags
+additional_tags = {
+  "department"        = "engineering"
+  "project-code"      = "ADE-2024-001"
+  "business-unit"     = "platform-engineering"
+  "cost-allocation"   = "development"
+  "data-sensitivity"  = "internal"
+  "compliance-scope"  = "company-standard"
+  "backup-required"   = "false"
+  "dr-required"       = "false"
+}
+
+# ==============================================================================
+# EXAMPLES FOR DIFFERENT ENVIRONMENTS
+# ==============================================================================
+
+# Production Environment Example:
+# -------------------------------
+# resource_group_name = "rg-ade-prod-001"
+# environment_type = "production"
+# budget_amount = 500.00
+# storage_account_tier = "Premium"
+# storage_replication_type = "ZRS"
+# log_retention_days = 90
+# enable_deletion_protection = true
+# allow_public_access = false
+
+# Development Environment Example:
+# --------------------------------
+# resource_group_name = "rg-ade-dev-001"
+# environment_type = "development"
+# budget_amount = 100.00
+# storage_account_tier = "Standard"
+# storage_replication_type = "LRS"
+# log_retention_days = 7
+# enable_deletion_protection = false
+# allow_public_access = true
+
+# Testing Environment Example:
+# ----------------------------
+# resource_group_name = "rg-ade-test-001"
+# environment_type = "testing"
+# budget_amount = 150.00
+# storage_account_tier = "Standard"
+# storage_replication_type = "GRS"
+# log_retention_days = 14
+# enable_deletion_protection = false
+# allow_public_access = false
+
+# ==============================================================================
+# NAMING CONVENTIONS
+# ==============================================================================
+
+# Resource naming follows Azure best practices:
+# - Budget: budget-user-{user_hash}
+# - Action Group: ag-budget-{user_hash}
+# - Storage Account: stcost{random_suffix} (24 chars max, lowercase)
+# - Log Analytics: law-cost-{user_hash}
+# - Container: cost-data
+
+# ==============================================================================
+# BUDGET NOTIFICATION DETAILS
+# ==============================================================================
+
+# The module creates the following notifications:
+# 1. High Usage Alert (80%) - Standard notification
+# 2. Critical Alert (95%) - Standard notification  
+# 3. Budget Exceeded (100%) - Critical notification (includes finance team)
+# 4. Forecast Alert (90%) - Standard notification (predicted overspend)
+
+# ==============================================================================
+# SECURITY CONSIDERATIONS
+# ==============================================================================
+
+# Default security settings:
+# - Storage account: HTTPS only, TLS 1.2 minimum
+# - Public access: Disabled by default
+# - Network rules: Azure services bypass enabled
+# - Blob versioning: Enabled
+# - Soft delete: 30 days retention
+# - Change feed: Disabled
+
+# ==============================================================================
+# DEPLOYMENT NOTES
+# ==============================================================================
+
+# 1. Ensure the target resource group exists before deployment
+# 2. The user deploying must have Contributor access to the resource group
+# 3. Budget notifications require valid email addresses
+# 4. Storage account names must be globally unique (handled by random suffix)
+# 5. All resources will be tagged for cost tracking and governance
