@@ -1,0 +1,448 @@
+name: 'ADE Environment Provisioning'
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: 'Environment Name'
+        required: true
+        type: string
+      catalog_name:
+        description: 'Environment Catalog'
+        required: true
+        type: choice
+        options:
+          - 'web-app-catalog'
+          - 'api-catalog'
+          - 'database-catalog'
+          - 'ml-workspace-catalog'
+          - 'iot-solution-catalog'
+      expiration_date:
+        description: 'Environment Expiration Date (YYYY-MM-DD)'
+        required: true
+        type: string
+      environment_type:
+        description: 'Environment Type'
+        required: true
+        type: choice
+        options:
+          - 'development'
+          - 'testing'
+          - 'staging'
+          - 'production'
+      user_email:
+        description: 'User Email (for budget allocation)'
+        required: true
+        type: string
+      additional_parameters:
+        description: 'Additional Parameters (JSON format)'
+        required: false
+        type: string
+        default: '{}'
+
+env:
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ADE_CENTER_NAME: ${{ secrets.ADE_CENTER_NAME }}
+  ADE_PROJECT_NAME: ${{ secrets.ADE_PROJECT_NAME }}
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  DEVOPS_TEAM_EMAIL: ${{ secrets.DEVOPS_TEAM_EMAIL }}
+  FINANCE_TEAM_EMAIL: ${{ secrets.FINANCE_TEAM_EMAIL }}
+  ADE_RESOURCE_GROUP_NAME: ${{ secrets.ADE_RESOURCE_GROUP_NAME }}
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+jobs:
+  validate-inputs:
+    name: 'Validate Inputs'
+    runs-on: ubuntu-latest
+    outputs:
+      expiration_timestamp: ${{ steps.validate.outputs.expiration_timestamp }}
+      user_hash: ${{ steps.validate.outputs.user_hash }}
+    steps:
+      - name: 'Validate expiration date'
+        id: validate
+        run: |
+          # Validate date format and ensure it's in the future
+          if ! date -d "${{ inputs.expiration_date }}" >/dev/null 2>&1; then
+            echo "❌ Invalid date format. Please use YYYY-MM-DD format."
+            exit 1
+          fi
+          
+          expiration_timestamp=$(date -d "${{ inputs.expiration_date }}" +%s)
+          current_timestamp=$(date +%s)
+          
+          if [ $expiration_timestamp -le $current_timestamp ]; then
+            echo "❌ Expiration date must be in the future."
+            exit 1
+          fi
+          
+          # Calculate days from now
+          days_diff=$(( (expiration_timestamp - current_timestamp) / 86400 ))
+          if [ $days_diff -gt 90 ]; then
+            echo "⚠️ Warning: Environment will expire in $days_diff days (more than 90 days)."
+          fi
+          
+          # Create user hash for budget allocation
+          user_hash=$(echo -n "${{ inputs.user_email }}" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+          
+          echo "expiration_timestamp=$expiration_timestamp" >> $GITHUB_OUTPUT
+          echo "user_hash=$user_hash" >> $GITHUB_OUTPUT
+          echo "✅ Validation completed. Environment will expire on ${{ inputs.expiration_date }} ($days_diff days from now)"
+
+      - name: 'Validate JSON parameters'
+        if: inputs.additional_parameters != '{}'
+        run: |
+          echo '${{ inputs.additional_parameters }}' | jq . > /dev/null
+          echo "✅ Additional parameters JSON is valid"
+
+  approval:
+    name: 'Environment Approval'
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    if: inputs.environment_type == 'production'
+    environment: 
+      name: production-approval
+    steps:
+      - name: 'Production Environment Notice'
+        run: |
+          echo "🔐 Production environment requested - manual approval required"
+          echo "Environment: ${{ inputs.environment_name }}"
+          echo "Catalog: ${{ inputs.catalog_name }}"
+          echo "Expiration: ${{ inputs.expiration_date }}"
+          echo "User: ${{ inputs.user_email }}"
+
+  provision-environment:
+    name: 'Provision ADE Environment'
+    runs-on: ubuntu-latest
+    needs: [validate-inputs, approval]
+    if: always() && (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+    outputs:
+      environment_id: ${{ steps.provision.outputs.environment_id }}
+      resource_group_name: ${{ steps.provision.outputs.resource_group_name }}
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      - name: 'Azure CLI Login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Install AZ DevCenter Extension'
+        run: |
+          az extension add --name devcenter --only-show-errors
+
+      - name: 'Provision ADE Environment'
+        id: provision
+        run: |
+          # Create unique environment name with timestamp
+          timestamp=$(date +%Y%m%d-%H%M%S)
+          full_env_name="${{ inputs.environment_name }}-${timestamp}"
+          
+          echo "🚀 Provisioning environment: $full_env_name"
+          
+          # Merge additional parameters
+          base_params='{
+            "expirationDate": "${{ inputs.expiration_date }}",
+            "environmentType": "${{ inputs.environment_type }}",
+            "userEmail": "${{ inputs.user_email }}",
+            "userHash": "${{ needs.validate-inputs.outputs.user_hash }}",
+            "requestedBy": "${{ github.actor }}",
+            "githubRunId": "${{ github.run_id }}"
+          }'
+          
+          additional_params='${{ inputs.additional_parameters }}'
+          if [ "$additional_params" = "{}" ]; then
+            merged_params="$base_params"
+          else
+            merged_params=$(echo "$base_params $additional_params" | jq -s '.[0] * .[1]')
+          fi
+          
+          echo "Parameters: $merged_params"
+          
+          # Create the environment
+          environment_result=$(az devcenter dev environment create \
+            --dev-center-name "${{ env.ADE_CENTER_NAME }}" \
+            --project-name "${{ env.ADE_PROJECT_NAME }}" \
+            --environment-name "$full_env_name" \
+            --catalog-name "${{ inputs.catalog_name }}" \
+            --environment-definition-name "${{ inputs.catalog_name }}-definition" \
+            --parameters "$merged_params" \
+            --output json)
+          
+          environment_id=$(echo "$environment_result" | jq -r '.id')
+          resource_group_name=$(echo "$environment_result" | jq -r '.resourceGroupId' | cut -d'/' -f5)
+          
+          echo "environment_id=$environment_id" >> $GITHUB_OUTPUT
+          echo "resource_group_name=$resource_group_name" >> $GITHUB_OUTPUT
+          
+          echo "✅ Environment provisioned successfully"
+          echo "Environment ID: $environment_id"
+          echo "Resource Group: $resource_group_name"
+
+      - name: 'Wait for Environment Deployment'
+        run: |
+          echo "⏳ Waiting for environment deployment to complete..."
+          
+          max_attempts=30
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            status=$(az devcenter dev environment show \
+              --dev-center-name "${{ env.ADE_CENTER_NAME }}" \
+              --project-name "${{ env.ADE_PROJECT_NAME }}" \
+              --environment-name "${{ inputs.environment_name }}-$(date +%Y%m%d-%H%M%S)" \
+              --query "provisioningState" \
+              --output tsv)
+            
+            echo "Current status: $status"
+            
+            if [ "$status" = "Succeeded" ]; then
+              echo "✅ Environment deployment completed successfully"
+              break
+            elif [ "$status" = "Failed" ]; then
+              echo "❌ Environment deployment failed"
+              exit 1
+            fi
+            
+            attempt=$((attempt + 1))
+            sleep 30
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "⚠️ Deployment timeout reached"
+            exit 1
+          fi
+
+  setup-governance:
+    name: 'Setup Budget and Governance'
+    runs-on: ubuntu-latest
+    needs: [validate-inputs, provision-environment]
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      - name: 'Azure CLI Login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7.0"
+
+      - name: 'Deploy Complete ADE Infrastructure with Terraform'
+        working-directory: './infrastructure/terraform/complete'
+        run: |
+          echo "🏗️ Deploying complete ADE infrastructure with Terraform..."
+          
+          # Initialize Terraform
+          terraform init
+          
+          # Create terraform.tfvars file
+          cat <<EOF > terraform.tfvars
+          # Required variables
+          resource_group_name = "${{ needs.provision-environment.outputs.resource_group_name }}"
+          location = "East US"
+          user_email = "${{ inputs.user_email }}"
+          user_hash = "${{ needs.validate-inputs.outputs.user_hash }}"
+          environment_name = "${{ inputs.environment_name }}"
+          budget_amount = 200
+          budget_start_date = "$(date +%Y-%m-01)"
+          budget_end_date = "${{ inputs.expiration_date }}"
+          devops_team_email = "${{ env.DEVOPS_TEAM_EMAIL || 'devops@company.com' }}"
+          finance_team_email = "${{ env.FINANCE_TEAM_EMAIL || 'finance@company.com' }}"
+          
+          # Slack integration
+          slack_integration_name = "ade-slack-integration"
+          slack_webhook_url = "${{ env.SLACK_WEBHOOK_URL }}"
+          event_grid_topic_name = "ade-events"
+          ade_resource_group_name = "${{ env.ADE_RESOURCE_GROUP_NAME || 'rg-ade-devcenter' }}"
+          ade_dev_center_name = "${{ env.ADE_CENTER_NAME }}"
+          
+          # Alert thresholds (80%, 95%, 100%, 90% forecast)
+          alert_thresholds = [
+            {
+              type = "Actual"
+              threshold = 80
+              operator = "GreaterThan"
+            },
+            {
+              type = "Actual"
+              threshold = 95
+              operator = "GreaterThan"
+            },
+            {
+              type = "Actual"
+              threshold = 100
+              operator = "GreaterThan"
+            },
+            {
+              type = "Forecasted"
+              threshold = 90
+              operator = "GreaterThan"
+            }
+          ]
+          
+          # Optional configuration
+          environment_type = "${{ inputs.environment_type }}"
+          expiration_date = "${{ inputs.expiration_date }}"
+          cost_center = "ADE-Environments"
+          
+          # Policy configuration
+          policy_enforcement_mode = "Default"
+          policy_required_tags = ["Environment", "Owner", "ExpirationDate", "CostCenter"]
+          policy_allowed_locations = ["East US", "West US 2", "Central US"]
+          
+          # Security settings
+          enable_security_policies = true
+          require_https_only = true
+          require_encryption_at_rest = true
+          
+          # Monitoring settings
+          enable_monitoring_policies = true
+          enable_activity_log_alerts = true
+          
+          # Budget policies
+          enable_budget_policies = true
+          max_cost_threshold = 200
+          
+          # Additional tags
+          additional_tags = {
+            "GitHubWorkflow" = "${{ github.workflow }}"
+            "GitHubRunId" = "${{ github.run_id }}"
+            "RequestedBy" = "${{ github.actor }}"
+            "Catalog" = "${{ inputs.catalog_name }}"
+          }
+          EOF
+          
+          # Plan the deployment
+          terraform plan -out=tfplan
+          
+          # Apply the deployment
+          terraform apply -auto-approve tfplan
+          
+          echo "✅ Complete ADE infrastructure deployed successfully with Terraform"
+
+  notify-slack:
+    name: 'Notify Slack'
+    runs-on: ubuntu-latest
+    needs: [validate-inputs, provision-environment, setup-governance]
+    if: always()
+    steps:
+      - name: 'Send Slack Notification'
+        run: |
+          if [ "${{ needs.setup-governance.result }}" = "success" ]; then
+            status="✅ SUCCESS"
+            color="good"
+            message="Environment provisioned successfully"
+          else
+            status="❌ FAILED"
+            color="danger"
+            message="Environment provisioning failed"
+          fi
+          
+          payload=$(cat <<EOF
+          {
+            "attachments": [
+              {
+                "color": "$color",
+                "title": "ADE Environment Provisioning $status",
+                "fields": [
+                  {
+                    "title": "Environment Name",
+                    "value": "${{ inputs.environment_name }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Catalog",
+                    "value": "${{ inputs.catalog_name }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Expiration Date",
+                    "value": "${{ inputs.expiration_date }}",
+                    "short": true
+                  },
+                  {
+                    "title": "User",
+                    "value": "${{ inputs.user_email }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Type",
+                    "value": "${{ inputs.environment_type }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Resource Group",
+                    "value": "${{ needs.provision-environment.outputs.resource_group_name }}",
+                    "short": true
+                  }
+                ],
+                "text": "$message",
+                "footer": "GitHub Actions",
+                "ts": $(date +%s)
+              }
+            ]
+          }
+          EOF
+          )
+          
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            "${{ env.SLACK_WEBHOOK_URL }}"
+
+  create-issue:
+    name: 'Create Tracking Issue'
+    runs-on: ubuntu-latest
+    needs: [validate-inputs, provision-environment, setup-governance]
+    if: needs.setup-governance.result == 'success'
+    permissions:
+      issues: write
+    steps:
+      - name: 'Create GitHub Issue'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `ADE Environment: ${{ inputs.environment_name }}`,
+              body: `## Environment Details
+              
+              **Environment Name:** ${{ inputs.environment_name }}
+              **Catalog:** ${{ inputs.catalog_name }}
+              **Type:** ${{ inputs.environment_type }}
+              **User:** ${{ inputs.user_email }}
+              **Expiration Date:** ${{ inputs.expiration_date }}
+              **Resource Group:** ${{ needs.provision-environment.outputs.resource_group_name }}
+              
+              ## Management Links
+              
+              - **Azure Portal:** [Resource Group](https://portal.azure.com/#@${{ env.AZURE_TENANT_ID }}/resource/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ needs.provision-environment.outputs.resource_group_name }})
+              - **GitHub Workflow:** [Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ## Automated Actions
+              
+              - [x] Environment Provisioned
+              - [x] Budget Configured ($200)
+              - [x] Governance Policies Applied
+              - [x] Slack Notification Sent
+              
+              **⚠️ This environment will expire on ${{ inputs.expiration_date }}**
+              `,
+              labels: ['ade-environment', '${{ inputs.environment_type }}', 'auto-created']
+            });
+            
+            console.log('Created issue:', issue.data.html_url);
