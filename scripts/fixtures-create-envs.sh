@@ -3,9 +3,9 @@ set -euo pipefail
 # Creates two RGs: one expiring in 7 days, one already expired yesterday.
 # Requires: az login
 
-LOCATION="${LOCATION:-westeurope}"
-OWNER1="${OWNER1:-alice@contoso.com}"
-OWNER2="${OWNER2:-bob@contoso.com}"
+LOCATION="${LOCATION:-centralcanada}"
+OWNER1="${OWNER1:-avivkabesa@microsoft.com}"
+OWNER2="${OWNER2:-yanivnorman@microsoft.com}"
 
 RG1="ade-alice-demo-rg"
 RG2="ade-bob-expired-rg"
