@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+**/*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.dist-info/
+**/*.dist-info/
+
+# Azure Functions
+local.settings.json
+.venv/
+.env
+env/
+venv/
+
+# Ignore ALL installed packages in src/functions/ except actual code
+src/functions/*
+!src/functions/budgetAlertHandler/
+!src/functions/expirationRunNow/
+!src/functions/expirationSweep/
+!src/functions/common/
+!src/functions/shared/
+!src/functions/tests/
+!src/functions/host.json
+!src/functions/requirements.txt
+!src/functions/local.settings.json
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+**/.terraform/*
+.terraform.lock.hcl
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Azure CLI
+.azure/
+
+# Secrets
+*.pem
+*.key
+*.env
+.env.*
+!.env.example
+
+# Git
+.git/
