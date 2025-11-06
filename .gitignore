@@ -31,6 +31,7 @@ src/functions/*
 !src/functions/host.json
 !src/functions/requirements.txt
 !src/functions/local.settings.json
+!src/functions/slackNotificationAWS/
 
 # Terraform
 *.tfstate
