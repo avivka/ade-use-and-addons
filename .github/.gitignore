@@ -1,2 +1,102 @@
 MIGRATION-COMPLETE.md
 ./infrastructure/terraform/terraform.tfvars
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Azure Functions
+local.settings.json
+.venv/
+.env
+
+# Python Dependencies in src/functions/
+src/functions/azure/
+src/functions/azure_*/
+src/functions/certifi/
+src/functions/certifi-*/
+src/functions/cffi/
+src/functions/cffi-*/
+src/functions/charset_normalizer/
+src/functions/charset_normalizer-*/
+src/functions/cryptography/
+src/functions/cryptography-*/
+src/functions/dateutil/
+src/functions/idna/
+src/functions/idna-*/
+src/functions/isodate/
+src/functions/isodate-*/
+src/functions/jwt/
+src/functions/msal/
+src/functions/msal_extensions/
+src/functions/msal_extensions-*/
+src/functions/msal-*/
+src/functions/pycparser/
+src/functions/pycparser-*/
+src/functions/PyJWT-*/
+src/functions/python_dateutil-*/
+src/functions/requests/
+src/functions/requests-*/
+src/functions/six-*/
+src/functions/typing_extensions-*/
+src/functions/urllib3/
+src/functions/urllib3-*/
+src/functions/bin/
+src/functions/six.py
+src/functions/typing_extensions.py
+
+# But keep the actual function code
+!src/functions/budgetAlertHandler/
+!src/functions/expirationRunNow/
+!src/functions/expirationSweep/
+!src/functions/common/
+!src/functions/shared/
+!src/functions/tests/
+!src/functions/host.json
+!src/functions/requirements.txt
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+**/.terraform/*
+.terraform.lock.hcl
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Azure CLI
+.azure/
+
+# Secrets
+*.pem
+*.key
+*.env
+.env.*
+!.env.example
