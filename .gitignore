@@ -17,21 +17,9 @@ MANIFEST
 local.settings.json
 .venv/
 .env
+.env.example
 env/
 venv/
-
-# Ignore ALL installed packages in src/functions/ except actual code
-src/functions/*
-!src/functions/budgetAlertHandler/
-!src/functions/expirationRunNow/
-!src/functions/expirationSweep/
-!src/functions/common/
-!src/functions/shared/
-!src/functions/tests/
-!src/functions/host.json
-!src/functions/requirements.txt
-!src/functions/local.settings.json
-!src/functions/slackNotificationAWS/
 
 # Terraform
 *.tfstate

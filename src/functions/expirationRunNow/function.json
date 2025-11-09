@@ -1,8 +1,11 @@
 {
   "scriptFile": "__init__.py",
   "bindings": [
-    { "authLevel": "function", "type": "httpTrigger", "direction": "in", "name": "req",
-      "methods": [ "post","get" ], "route": "expiration/runNow" },
-    { "type": "http", "direction": "out", "name": "res" }
+    {
+      "name": "mytimer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "0 0 9 * * *"
+    }
   ]
 }
