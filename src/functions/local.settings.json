@@ -4,6 +4,10 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/xxx/yyy/zzz",
-    "ADE_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000000"
+    "ADE_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000000",
+    "ADE_DEV_CENTER": "your-devcenter-name",
+    "ADE_PROJECT_NAME": "your-project-name",
+    "SLACK_MOCK": "1",
+    "EXPIRATION_WARN_DAYS": "7"
   }
 }
