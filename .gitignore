@@ -17,6 +17,7 @@ MANIFEST
 local.settings.json
 .venv/
 .env
+**/.env.example
 .env.example
 env/
 venv/
@@ -36,8 +37,9 @@ override.tf.json
 *_override.tf.json
 
 # IDE
-.vscode/
+
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
@@ -62,3 +64,6 @@ logs/
 
 # Git
 .git/
+
+# Zip
+*.zip

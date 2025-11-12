@@ -26,7 +26,7 @@ else:
 
 # Import the function
 try:
-    from __init__ import check_expiring_environments, send_slack_notification
+    from function_app import check_expiring_environments, send_slack_notification
     print("✅ Successfully imported function modules")
 except ImportError as e:
     print(f"❌ Failed to import function: {e}")

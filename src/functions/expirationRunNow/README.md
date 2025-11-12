@@ -2,14 +2,15 @@
 
 ## Overview
 
-This is a containerized Azure Function that runs daily to monitor Azure Deployment Environment (ADE) expiration dates and sends Slack notifications for environments that are expiring soon or have already expired.
+This is a containerized Azure Function that runs daily to monitor ALL Azure Deployment Environment (ADE) expiration dates across your subscription and sends categorized Slack notifications with owner information.
 
 ## Features
 
 - ✅ **Daily Scheduled Execution**: Runs automatically at 9:00 AM UTC every day
-- 🔍 **ADE API Integration**: Fetches all environments using the DevCenter REST API
-- 📅 **Expiration Monitoring**: Identifies environments expiring within N days (configurable)
-- 📱 **Slack Notifications**: Sends rich formatted messages to Slack channel
+- 🌍 **Subscription-Wide Monitoring**: Queries ALL environments using Azure Resource Graph (not just current user)
+- � **Owner Identification**: Extracts owner email from `created_by` Azure tag
+- 📊 **Categorized Alerts**: Groups environments by urgency (expired, tomorrow, 3 days, 7 days)
+- 📱 **Rich Slack Notifications**: Sends formatted messages with owner details per category
 - 🐳 **Containerized**: Self-contained Docker container with all dependencies
 - 🔐 **Managed Identity**: Uses Azure Managed Identity for authentication
 
@@ -17,21 +18,24 @@ This is a containerized Azure Function that runs daily to monitor Azure Deployme
 
 The function:
 1. Authenticates using Azure Managed Identity (DefaultAzureCredential)
-2. Calls the DevCenter API to list all environments
-3. Checks expiration dates and identifies environments expiring soon
-4. Formats and sends notifications to Slack webhook
-5. Logs results and errors to Application Insights
+2. Queries Azure Resource Graph to get ALL resource groups with ADE tags across the subscription
+3. Extracts expiration dates from resource group tags (e.g., `ade:expiresOn`)
+4. Extracts owner email from `created_by` tag
+5. Categorizes environments by urgency:
+   - **Expired**: Already past expiration date
+   - **Tomorrow**: Expiring within 24 hours
+   - **3 Days**: Expiring within 3 days
+   - **7 Days**: Expiring within 7 days
+6. Sends categorized Slack notification with owner details
+7. Logs results and errors to Application Insights
 
 ## Environment Variables
 
 Required:
 - `ADE_SUBSCRIPTION_ID`: Your Azure subscription ID
-- `ADE_DEV_CENTER`: Your DevCenter name (e.g., "mydevcenter")
-- `ADE_PROJECT_NAME`: Your ADE project name
 - `SLACK_WEBHOOK_URL`: Slack incoming webhook URL
 
 Optional:
-- `EXPIRATION_WARN_DAYS`: Days before expiration to warn (default: 3)
 - `SLACK_MOCK`: Set to "1" to print messages instead of sending (for testing)
 
 ## Timer Schedule
