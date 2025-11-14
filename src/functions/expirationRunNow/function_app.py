@@ -30,23 +30,20 @@ def fetch_all_environments() -> List[Dict]:
     credential = get_credential()
     resource_graph_client = ResourceGraphClient(credential)
     
-    # Query to find all resources that might be ADE environments
-    # Including resource groups with ADE tags and DevCenter environment resources
+    # Query to find Azure DevCenter environment resources
+    # Get the actual environment resources with their properties including expiration
     query = """
     Resources
     | where subscriptionId =~ '{subscription_id}'
-    | where (
-        type =~ 'microsoft.devcenter/projects/environments' 
-        or type =~ 'microsoft.devcenter/devcenters/environments'
-        or type contains 'devcenter'
-        or (tags has_key 'ade:expiresOn')
-        or (tags has_key 'expiresOn')
-        or (tags has_key 'expiration')
-        or (tags has_key 'expirationDate')
-        or (tags has_key 'created_by')
-        or (tags has_key 'ade')
-    )
-    | project id, name, location, tags, type, subscriptionId, resourceGroup
+    | where type =~ 'microsoft.devcenter/projects/environments'
+    | extend expirationDate = properties.expirationDate
+    | extend provisioningState = properties.provisioningState
+    | extend user = properties.user
+    | extend catalogName = properties.catalogName
+    | extend environmentDefinitionName = properties.environmentDefinitionName
+    | project id, name, location, type, resourceGroup, subscriptionId, 
+              expirationDate, provisioningState, user, catalogName, 
+              environmentDefinitionName, tags, properties
     | order by name asc
     """.format(subscription_id=subscription_id)
     
@@ -66,16 +63,17 @@ def fetch_all_environments() -> List[Dict]:
         if hasattr(response, 'data') and response.data:
             environments = response.data
         
-        logger.info(f"Fetched {len(environments)} resources from Azure Resource Graph")
+        logger.info(f"Fetched {len(environments)} DevCenter environments from Azure Resource Graph")
         
-        # Log resource types found for debugging
+        # Log sample environment for debugging
         if environments:
-            resource_types = set(env.get('type', 'unknown') for env in environments)
-            logger.info(f"Resource types found: {', '.join(resource_types)}")
-            # Log a sample of tag keys for debugging
             sample_env = environments[0]
-            if sample_env.get('tags'):
-                logger.info(f"Sample tags from first resource: {', '.join(sample_env['tags'].keys())}")
+            logger.info(f"Sample environment:")
+            logger.info(f"  Name: {sample_env.get('name')}")
+            logger.info(f"  User: {sample_env.get('user')}")
+            logger.info(f"  Expiration: {sample_env.get('expirationDate')}")
+            logger.info(f"  State: {sample_env.get('provisioningState')}")
+            logger.info(f"  Definition: {sample_env.get('environmentDefinitionName')}")
         else:
             # If no resources found, run a diagnostic query
             logger.warning("No resources found with ADE tags. Running diagnostic query...")
@@ -156,22 +154,20 @@ def categorize_by_expiration(environments: List[Dict]) -> Dict[str, List[Dict]]:
     }
     
     for env in environments:
-        tags = env.get('tags', {})
-        
-        expiration_str = None
-        for tag_key in ['ade:expiresOn', 'expiresOn', 'expiration', 'expirationDate', 'expiration-date']:
-            if tag_key in tags:
-                expiration_str = tags[tag_key]
-                break
+        # Get expiration date from the environment properties (not tags)
+        expiration_str = env.get('expirationDate')
         
         if not expiration_str:
+            logger.debug(f"Environment '{env.get('name')}' has no expiration date")
             continue
         
         expiration_date = parse_expiration_date(expiration_str)
         if not expiration_date:
+            logger.warning(f"Could not parse expiration date for '{env.get('name')}': {expiration_str}")
             continue
         
-        owner_email = extract_owner_email(tags)
+        # Get owner from environment user property or fall back to tags
+        owner_email = env.get('user') or extract_owner_email(env.get('tags', {}))
         days_until_expiration = (expiration_date - now).days
         
         env_info = {
@@ -180,8 +176,11 @@ def categorize_by_expiration(environments: List[Dict]) -> Dict[str, List[Dict]]:
             "expirationDate": expiration_date.isoformat(),
             "daysUntilExpiration": days_until_expiration,
             "location": env.get("location"),
-            "resourceGroupId": env.get("id"),
-            "tags": tags
+            "resourceGroup": env.get("resourceGroup"),
+            "environmentDefinition": env.get("environmentDefinitionName"),
+            "catalogName": env.get("catalogName"),
+            "provisioningState": env.get("provisioningState"),
+            "resourceId": env.get("id")
         }
         
         if expiration_date < now:
