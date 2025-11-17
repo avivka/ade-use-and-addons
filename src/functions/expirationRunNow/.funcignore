@@ -18,7 +18,8 @@ validate_*.py
 *.md
 Dockerfile
 .dockerignore
-deploy.sh
-exec.sh
+*.sh
 .DS_Store
 *.zip
+function_app_minimal.py
+function_app.py.backup
