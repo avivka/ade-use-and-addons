@@ -96,10 +96,44 @@ def fetch_environments_from_project(credential, devcenter_endpoint: str, project
             for env in paged_envs:
                 env_count += 1
                 logger.info(f"  Processing environment #{env_count}: {env.name if hasattr(env, 'name') else 'unknown'}")
+                
+                # Print entire env object
+                print(f"\n{'='*80}")
+                print(f"DEBUG: Full environment object #{env_count}")
+                print(f"{'='*80}")
+                print(f"Type: {type(env)}")
+                if hasattr(env, '__dict__'):
+                    print(f"Dict: {env.__dict__}")
+                print(f"\nChecking all possible expiration attributes:")
+                for attr in ['expiration_date', 'expirationDate', 'expiration', 'expires_on', 'expiresOn']:
+                    has_it = hasattr(env, attr)
+                    value = getattr(env, attr, 'NOT_FOUND') if has_it else 'NOT_FOUND'
+                    print(f"  {attr}: {has_it} -> {value}")
+                
+                # Try to get all properties that might contain date/time info
+                print(f"\nAll attributes containing 'date' or 'time' or 'expir':")
+                for attr in dir(env):
+                    if not attr.startswith('_') and ('date' in attr.lower() or 'time' in attr.lower() or 'expir' in attr.lower()):
+                        try:
+                            val = getattr(env, attr)
+                            if not callable(val):
+                                print(f"  {attr} = {val}")
+                        except:
+                            pass
+                print(f"{'='*80}\n")
+                
                 logger.info(f"    - Has expiration_date: {hasattr(env, 'expiration_date')}")
                 if hasattr(env, 'expiration_date'):
                     logger.info(f"    - Expiration value: {env.expiration_date}")
-                # Extract properties from the environment object
+                
+                # Extract properties from the environment object - try multiple attribute names
+                expiration_value = None
+                for attr in ['expiration_date', 'expirationDate', 'expiration', 'expires_on', 'expiresOn']:
+                    if hasattr(env, attr):
+                        expiration_value = getattr(env, attr)
+                        print(f"DEBUG: Found expiration via attribute '{attr}': {expiration_value}")
+                        break
+                
                 env_dict = {
                     'name': env.name if hasattr(env, 'name') else None,
                     'project_name': project_name,
@@ -109,7 +143,7 @@ def fetch_environments_from_project(credential, devcenter_endpoint: str, project
                     'user': env.user if hasattr(env, 'user') else None,
                     'provisioningState': env.provisioning_state if hasattr(env, 'provisioning_state') else None,
                     'resourceGroupId': env.resource_group_id if hasattr(env, 'resource_group_id') else None,
-                    'expirationDate': env.expiration_date if hasattr(env, 'expiration_date') else None
+                    'expirationDate': expiration_value
                 }
                 environments.append(env_dict)
         except AttributeError as ae:
@@ -251,23 +285,31 @@ def extract_owner_email(env: Dict) -> Optional[str]:
 def parse_expiration_date(expiration_str: Optional[str]) -> Optional[datetime]:
     """Parse expiration date from ISO format string or date string."""
     if not expiration_str:
+        logger.info(f"[PARSE] No expiration string provided")
         return None
+    
+    logger.info(f"[PARSE] Parsing expiration string: '{expiration_str}' (type: {type(expiration_str).__name__})")
     
     try:
         if expiration_str.endswith('Z'):
-            return datetime.fromisoformat(expiration_str.replace('Z', '+00:00'))
+            result = datetime.fromisoformat(expiration_str.replace('Z', '+00:00'))
+            logger.info(f"[PARSE] Parsed as ISO with Z suffix: {result}")
+            return result
         
         if 'T' in expiration_str:
             dt = datetime.fromisoformat(expiration_str)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
+            logger.info(f"[PARSE] Parsed as ISO datetime: {dt}")
             return dt
         
         dt = datetime.strptime(expiration_str, '%Y-%m-%d')
-        return dt.replace(tzinfo=timezone.utc)
+        result = dt.replace(tzinfo=timezone.utc)
+        logger.info(f"[PARSE] Parsed as date only: {result}")
+        return result
         
     except Exception as e:
-        logger.warning(f"Failed to parse date '{expiration_str}': {e}")
+        logger.warning(f"[PARSE] Failed to parse date '{expiration_str}': {e}")
         return None
 
 
@@ -278,6 +320,14 @@ def categorize_by_expiration(environments: List[Dict]) -> Dict[str, List[Dict]]:
     three_days = now + timedelta(days=3)
     seven_days = now + timedelta(days=7)
     
+    logger.info(f"\n{'='*60}")
+    logger.info(f"[CATEGORIZE] Current time (UTC): {now}")
+    logger.info(f"[CATEGORIZE] Tomorrow threshold: {tomorrow}")
+    logger.info(f"[CATEGORIZE] 3-day threshold: {three_days}")
+    logger.info(f"[CATEGORIZE] 7-day threshold: {seven_days}")
+    logger.info(f"[CATEGORIZE] Total environments to process: {len(environments)}")
+    logger.info(f"{'='*60}\n")
+    
     categories = {
         'expired': [],
         'tomorrow': [],
@@ -286,27 +336,45 @@ def categorize_by_expiration(environments: List[Dict]) -> Dict[str, List[Dict]]:
         'future': []
     }
     
-    for env in environments:
+    for idx, env in enumerate(environments, 1):
+        env_name = env.get('name', 'UNKNOWN')
+        logger.info(f"\n--- Processing Environment #{idx}: {env_name} ---")
+        
         # Get expiration date from top level (from DevCenter API)
         expiration_value = env.get('expirationDate')
+        print(f"DEBUG: expiration_value = {expiration_value}, type = {type(expiration_value)}")
         
         if not expiration_value:
-            logger.debug(f"Environment '{env.get('name')}' has no expiration date")
+            logger.info(f"[CATEGORIZE] Environment '{env_name}' has NO expiration date - SKIPPING")
             continue
+        
+        logger.info(f"[CATEGORIZE] Raw expiration value: {expiration_value} (type: {type(expiration_value).__name__})")
         
         # Convert datetime object to string if needed, or parse if string
         if isinstance(expiration_value, datetime):
             expiration_date = expiration_value
+            logger.info(f"[CATEGORIZE] Value is already datetime object: {expiration_date}")
         else:
+            logger.info(f"[CATEGORIZE] Value is string, calling parse_expiration_date...")
             expiration_date = parse_expiration_date(expiration_value)
         
         if not expiration_date:
-            logger.warning(f"Could not parse expiration date for '{env.get('name')}': {expiration_value}")
+            logger.warning(f"[CATEGORIZE] Could not parse expiration date for '{env_name}': {expiration_value} - SKIPPING")
             continue
         
         # Get owner using the updated extract_owner_email function
         owner_email = extract_owner_email(env)
-        days_until_expiration = (expiration_date - now).days
+        logger.info(f"[CATEGORIZE] Owner email: {owner_email}")
+        
+        # Calculate days until expiration
+        time_diff = expiration_date - now
+        days_until_expiration = time_diff.days
+        hours_until_expiration = time_diff.total_seconds() / 3600
+        
+        logger.info(f"[CATEGORIZE] Expiration date: {expiration_date}")
+        logger.info(f"[CATEGORIZE] Time difference: {time_diff}")
+        logger.info(f"[CATEGORIZE] Days until expiration: {days_until_expiration}")
+        logger.info(f"[CATEGORIZE] Hours until expiration: {hours_until_expiration:.2f}")
         
         env_info = {
             "name": env.get("name"),
@@ -321,15 +389,21 @@ def categorize_by_expiration(environments: List[Dict]) -> Dict[str, List[Dict]]:
             "resourceId": env.get("resourceGroupId")
         }
         
+        # Determine category with detailed logging
         if expiration_date < now:
+            logger.info(f"[CATEGORIZE] ❌ EXPIRED (expiration {expiration_date} < now {now})")
             categories['expired'].append(env_info)
         elif expiration_date <= tomorrow:
+            logger.info(f"[CATEGORIZE] 🚨 EXPIRES TOMORROW (expiration {expiration_date} <= tomorrow {tomorrow})")
             categories['tomorrow'].append(env_info)
         elif expiration_date <= three_days:
+            logger.info(f"[CATEGORIZE] ⚠️  EXPIRES IN 3 DAYS (expiration {expiration_date} <= 3-days {three_days})")
             categories['3_days'].append(env_info)
         elif expiration_date <= seven_days:
+            logger.info(f"[CATEGORIZE] ⏰ EXPIRES IN 7 DAYS (expiration {expiration_date} <= 7-days {seven_days})")
             categories['7_days'].append(env_info)
         else:
+            logger.info(f"[CATEGORIZE] ✅ FUTURE (expiration {expiration_date} > 7-days {seven_days})")
             categories['future'].append(env_info)
     
     return categories
