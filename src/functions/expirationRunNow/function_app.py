@@ -4,14 +4,26 @@ import os
 import json
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
-import requests
-from azure.identity import DefaultAzureCredential
-from azure.mgmt.devcenter import DevCenterMgmtClient
-from azure.developer.devcenter import DevCenterClient
-from azure.mgmt.resource import ResourceManagementClient
+
+# Configure logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import heavy dependencies after basic setup
+try:
+    import requests
+    from azure.identity import DefaultAzureCredential
+    from azure.mgmt.devcenter import DevCenterMgmtClient
+    from azure.developer.devcenter import DevCenterClient
+    from azure.mgmt.resource import ResourceManagementClient
+    from azure.core.rest import HttpRequest
+    logger.info("Successfully imported all Azure dependencies")
+except Exception as e:
+    logger.error(f"Failed to import dependencies: {e}", exc_info=True)
+    raise
 
 app = func.FunctionApp()
-logger = logging.getLogger(__name__)
+logger.info("Function app initialized")
 
 
 def get_credential():
@@ -92,8 +104,6 @@ def fetch_environments_from_project(credential, devcenter_endpoint: str, project
             
             try:
                 # Use the SDK's send_request method which handles auth properly
-                from azure.core.rest import HttpRequest
-                
                 relative_url = f"/projects/{project_name}/environments?api-version=2025-02-01"
                 print(f"🔧 DEBUG: Making request to: {relative_url}")
                 
@@ -285,11 +295,15 @@ def fetch_all_environments() -> List[Dict]:
     
     credential = get_credential()
     subscription_id = os.environ.get("ADE_SUBSCRIPTION_ID")
+    logger.info(f"🔑 Subscription ID: {subscription_id}")
     
     if not subscription_id:
         raise ValueError("Missing required environment variable: ADE_SUBSCRIPTION_ID")
     
     # Step 1: Get all DevCenter projects using management client
+    logger.info(f"REACHING DEVCENTER MGMT CLIENT NOW")
+    logger.info(f"🔐 Credential type: {type(credential).__name__}")
+    logger.info(f"🔐 Credential object: {credential}")
     mgmt_client = DevCenterMgmtClient(credential, subscription_id)
     projects = fetch_all_dev_centers_and_projects(mgmt_client)
     
