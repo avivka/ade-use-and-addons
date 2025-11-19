@@ -295,11 +295,15 @@ def fetch_all_environments() -> List[Dict]:
     
     credential = get_credential()
     subscription_id = os.environ.get("ADE_SUBSCRIPTION_ID")
+    logger.info(f"🔑 Subscription ID: {subscription_id}")
     
     if not subscription_id:
         raise ValueError("Missing required environment variable: ADE_SUBSCRIPTION_ID")
     
     # Step 1: Get all DevCenter projects using management client
+    logger.info(f"REACHING DEVCENTER MGMT CLIENT NOW")
+    logger.info(f"🔐 Credential type: {type(credential).__name__}")
+    logger.info(f"🔐 Credential object: {credential}")
     mgmt_client = DevCenterMgmtClient(credential, subscription_id)
     projects = fetch_all_dev_centers_and_projects(mgmt_client)
     
