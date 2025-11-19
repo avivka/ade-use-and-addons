@@ -1,0 +1,23 @@
+{
+  "schemaId": "AzureMonitorMetricAlert",
+  "data": {
+    "essentials": {
+      "alertRule": "Budget_user@contoso.com_200",
+      "severity": "Sev3",
+      "signalType": "Metric",
+      "monitoringService": "Platform",
+      "alertTargetIDs": [ "/subscriptions/0000/resourceGroups/rgX" ],
+      "originAlertId": "xxxx",
+      "essentialsVersion": "1.0"
+    },
+    "alertContext": {
+      "budgetName": "Budget_user@contoso.com_200",
+      "timeGrain": "Monthly",
+      "threshold": 90,
+      "currentSpend": { "amount": 180.12, "unit": "USD" },
+      "dimensions": [
+        { "name": "TagName", "value": "ade:userUpn:user@contoso.com" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SLACK_WEBHOOK_URL": "your-slack-webhook-url-here",
+    "ADE_SUBSCRIPTION_ID": "your-subscription-id",
+    "ADE_DEV_CENTER": "your-devcenter-name",
+    "ADE_PROJECT_NAME": "your-project-name"
+  }
+}
