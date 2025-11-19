@@ -87,65 +87,143 @@ def fetch_environments_from_project(credential, devcenter_endpoint: str, project
         environments = []
         
         try:
-            # Try the list_all_environments API
-            logger.info(f"Calling list_all_environments for project '{project_name}'...")
-            paged_envs = devcenter_client.list_all_environments(project_name=project_name)
-            logger.info(f"Successfully called list_all_environments, iterating results...")
+            # Use DevCenterClient's internal pipeline to make REST API calls
+            logger.info(f"Fetching environments via DevCenterClient pipeline for project '{project_name}'...")
             
-            env_count = 0
-            for env in paged_envs:
-                env_count += 1
-                logger.info(f"  Processing environment #{env_count}: {env.name if hasattr(env, 'name') else 'unknown'}")
+            try:
+                # Use the SDK's send_request method which handles auth properly
+                from azure.core.rest import HttpRequest
                 
-                # Print entire env object
-                print(f"\n{'='*80}")
-                print(f"DEBUG: Full environment object #{env_count}")
-                print(f"{'='*80}")
-                print(f"Type: {type(env)}")
-                if hasattr(env, '__dict__'):
-                    print(f"Dict: {env.__dict__}")
-                print(f"\nChecking all possible expiration attributes:")
-                for attr in ['expiration_date', 'expirationDate', 'expiration', 'expires_on', 'expiresOn']:
-                    has_it = hasattr(env, attr)
-                    value = getattr(env, attr, 'NOT_FOUND') if has_it else 'NOT_FOUND'
-                    print(f"  {attr}: {has_it} -> {value}")
+                relative_url = f"/projects/{project_name}/environments?api-version=2025-02-01"
+                print(f"🔧 DEBUG: Making request to: {relative_url}")
                 
-                # Try to get all properties that might contain date/time info
-                print(f"\nAll attributes containing 'date' or 'time' or 'expir':")
-                for attr in dir(env):
-                    if not attr.startswith('_') and ('date' in attr.lower() or 'time' in attr.lower() or 'expir' in attr.lower()):
-                        try:
-                            val = getattr(env, attr)
-                            if not callable(val):
-                                print(f"  {attr} = {val}")
-                        except:
-                            pass
-                print(f"{'='*80}\n")
+                request = HttpRequest(
+                    method="GET",
+                    url=relative_url
+                )
                 
-                logger.info(f"    - Has expiration_date: {hasattr(env, 'expiration_date')}")
-                if hasattr(env, 'expiration_date'):
-                    logger.info(f"    - Expiration value: {env.expiration_date}")
+                print(f"� DEBUG: Sending request through DevCenterClient pipeline...")
+                response = devcenter_client.send_request(request)
+                response.raise_for_status()
                 
-                # Extract properties from the environment object - try multiple attribute names
-                expiration_value = None
-                for attr in ['expiration_date', 'expirationDate', 'expiration', 'expires_on', 'expiresOn']:
-                    if hasattr(env, attr):
-                        expiration_value = getattr(env, attr)
-                        print(f"DEBUG: Found expiration via attribute '{attr}': {expiration_value}")
-                        break
+                page = response.json()
+                print(f"✅ DEBUG: Successfully got response via SDK pipeline")
+                print(f"📊 DEBUG: Response has {len(page.get('value', []))} environments")
                 
-                env_dict = {
-                    'name': env.name if hasattr(env, 'name') else None,
-                    'project_name': project_name,
-                    'catalogName': env.catalog_name if hasattr(env, 'catalog_name') else None,
-                    'environmentDefinitionName': env.environment_definition_name if hasattr(env, 'environment_definition_name') else None,
-                    'environmentType': env.environment_type if hasattr(env, 'environment_type') else None,
-                    'user': env.user if hasattr(env, 'user') else None,
-                    'provisioningState': env.provisioning_state if hasattr(env, 'provisioning_state') else None,
-                    'resourceGroupId': env.resource_group_id if hasattr(env, 'resource_group_id') else None,
-                    'expirationDate': expiration_value
-                }
-                environments.append(env_dict)
+                env_count = 0
+                url = page.get("nextLink")  # For pagination
+                
+                for env in page.get("value", []):
+                    env_count += 1
+                    env_name = env.get("name", "unknown")
+                    logger.info(f"  Processing environment #{env_count}: {env_name}")
+                    
+                    for env in page.get("value", []):
+                        env_count += 1
+                        env_name = env.get("name", "unknown")
+                        logger.info(f"  Processing environment #{env_count}: {env_name}")
+                        
+                        # Print raw environment data for debugging
+                        print(f"\n{'='*80}")
+                        print(f"DEBUG: Environment #{env_count} - {env_name}")
+                        print(f"{'='*80}")
+                        print(f"Raw JSON keys: {list(env.keys())}")
+                        print(f"Full JSON: {json.dumps(env, indent=2, default=str)}")
+                        print(f"{'='*80}\n")
+                        
+                        expiration_from_api = env.get("expirationDate")
+                        print(f"🔍 DEBUG: Raw expirationDate from API = '{expiration_from_api}' (type: {type(expiration_from_api)})")
+                        
+                        env_dict = {
+                            'name': env.get("name"),
+                            'project_name': project_name,
+                            'catalogName': env.get("catalogName"),
+                            'environmentDefinitionName': env.get("environmentDefinitionName"),
+                            'environmentType': env.get("environmentType"),
+                            'user': env.get("user"),
+                            'provisioningState': env.get("provisioningState"),
+                            'resourceGroupId': env.get("resourceGroupId"),
+                            'expirationDate': expiration_from_api
+                        }
+                        
+                        print(f"✅ DEBUG: env_dict created with expirationDate = '{env_dict['expirationDate']}'")
+                        print(f"📦 DEBUG: About to append to environments list")
+                        environments.append(env_dict)
+                        print(f"✔️  DEBUG: Successfully appended. Total envs now: {len(environments)}")
+                
+                # Handle pagination
+                while url:
+                    print(f"🔄 DEBUG: Following nextLink for pagination...")
+                    next_request = HttpRequest(method="GET", url=url)
+                    response = devcenter_client.send_request(next_request)
+                    response.raise_for_status()
+                    page = response.json()
+                    
+                    for env in page.get("value", []):
+                        env_count += 1
+                        env_name = env.get("name", "unknown")
+                        logger.info(f"  Processing environment #{env_count}: {env_name}")
+                        
+                        expiration_from_api = env.get("expirationDate")
+                        print(f"🔍 DEBUG: Raw expirationDate from API = '{expiration_from_api}' (type: {type(expiration_from_api)})")
+                        
+                        env_dict = {
+                            'name': env.get("name"),
+                            'project_name': project_name,
+                            'catalogName': env.get("catalogName"),
+                            'environmentDefinitionName': env.get("environmentDefinitionName"),
+                            'environmentType': env.get("environmentType"),
+                            'user': env.get("user"),
+                            'provisioningState': env.get("provisioningState"),
+                            'resourceGroupId': env.get("resourceGroupId"),
+                            'expirationDate': expiration_from_api
+                        }
+                        
+                        environments.append(env_dict)
+                    
+                    url = page.get("nextLink")
+            
+            except requests.exceptions.HTTPError as http_err:
+                if http_err.response.status_code == 403:
+                    logger.error(f"❌ 403 Forbidden when calling REST API")
+                    logger.error(f"URL: {http_err.response.url}")
+                    logger.error(f"Response body: {http_err.response.text}")
+                    logger.error(f"Response headers: {dict(http_err.response.headers)}")
+                    logger.warning(f"Credentials may not have 'Deployment Environments Reader' role")
+                    logger.warning(f"Managed Identity needs 'Deployment Environments Reader' role on the DevCenter project")
+                    logger.info(f"Falling back to SDK (which may not have expirationDate)...")
+                    
+                    # Fallback to SDK approach
+                    paged_envs = devcenter_client.list_all_environments(project_name=project_name)
+                    env_count = 0
+                    for env in paged_envs:
+                        env_count += 1
+                        logger.info(f"  Processing environment #{env_count}: {env.name if hasattr(env, 'name') else 'unknown'}")
+                        
+                        # Try multiple attribute names for expiration
+                        expiration_value = None
+                        for attr in ['expiration_date', 'expirationDate', 'expiration']:
+                            if hasattr(env, attr):
+                                expiration_value = getattr(env, attr)
+                                if expiration_value:
+                                    break
+                        
+                        env_dict = {
+                            'name': env.name if hasattr(env, 'name') else None,
+                            'project_name': project_name,
+                            'catalogName': env.catalog_name if hasattr(env, 'catalog_name') else None,
+                            'environmentDefinitionName': env.environment_definition_name if hasattr(env, 'environment_definition_name') else None,
+                            'environmentType': env.environment_type if hasattr(env, 'environment_type') else None,
+                            'user': env.user if hasattr(env, 'user') else None,
+                            'provisioningState': env.provisioning_state if hasattr(env, 'provisioning_state') else None,
+                            'resourceGroupId': env.resource_group_id if hasattr(env, 'resource_group_id') else None,
+                            'expirationDate': expiration_value
+                        }
+                        environments.append(env_dict)
+                else:
+                    raise
+            
+
         except AttributeError as ae:
             logger.error(f"API method not available: {str(ae)}")
             # Alternative: try listing environments by user
@@ -234,10 +312,13 @@ def fetch_all_environments() -> List[Dict]:
         
         # Fetch environments from this project using data plane API
         envs = fetch_environments_from_project(credential, devcenter_uri, project_name)
+        print(f"🔄 DEBUG: fetch_environments_from_project returned {len(envs)} environments")
         
         # Step 3: Correlate with resource groups to get owner tags
         for env in envs:
             env_name = env.get('name')
+            exp_before = env.get('expirationDate')
+            print(f"🔄 DEBUG: Processing env '{env_name}' - expirationDate BEFORE tagging: '{exp_before}'")
             
             # Derive resource group name from resourceGroupId if available
             rg_id = env.get('resourceGroupId')
@@ -254,7 +335,10 @@ def fetch_all_environments() -> List[Dict]:
                 env['environment_resource_group'] = rg_name
                 env['tags'] = rg_tags
             
+            exp_after = env.get('expirationDate')
+            print(f"➕ DEBUG: About to append env '{env_name}' - expirationDate AFTER tagging: '{exp_after}'")
             all_environments.append(env)
+            print(f"✅ DEBUG: Appended. Total all_environments: {len(all_environments)}")
     
     logger.info(f"Found total of {len(all_environments)} Azure Deployment Environments across all projects")
     return all_environments
