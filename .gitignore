@@ -1,15 +1,3 @@
-# Terraform files
-*.tfstate
-*.tfstate.*
-*.tfplan
-.terraform/
-.terraform.lock.hcl
-
-# Specifically ignore the terraform.tfvars file in the infrastructure directory
-infrastructure/terraform/terraform.tfvars
-infrastructure/terraform/complete/terraform.tfvars
-infrastructure/terraform/modules/*/terraform.tfvars
-
 # OS generated files
 .DS_Store
 .DS_Store?
@@ -20,11 +8,58 @@ ehthumbs.db
 Thumbs.db
 
 # IDE files
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+**/*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.dist-info/
+**/*.dist-info/
+
+# Azure Functions
+local.settings.json
+.venv/
+.env
+**/.env.example
+.env.example
+env/
+venv/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+**/.terraform/*
+.terraform.lock.hcl
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+
+# Specifically ignore the terraform.tfvars file in the infrastructure directory
+infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/complete/terraform.tfvars
+infrastructure/terraform/modules/*/terraform.tfvars
 
 # Log files
 *.log
