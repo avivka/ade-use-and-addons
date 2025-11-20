@@ -77,3 +77,6 @@ PSGetModuleInfo.xml
 
 # Migration tracking file
 MIGRATION-COMPLETE.md
+
+# Zip Files
+*.zip
