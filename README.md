@@ -107,5 +107,7 @@ You may consult avivkabesa@microsoft.com
 - https://youtu.be/PN6eZOlsxOA?si=kusIYkxUzOO1k5VS
 - 
 
+## License
+MIT
 
 ---
